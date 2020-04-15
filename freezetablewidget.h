@@ -57,8 +57,13 @@
        Q_OBJECT
 
   public:
-        FreezeTableWidget(QAbstractItemModel * model);
+        explicit FreezeTableView(QWidget *parent = Q_NULLPTR);
         ~FreezeTableWidget();
+
+	virtual void setModel(QAbstractItemModel *model) override;
+
+	int getFixColumn() const { return m_FixColumn; }
+	void setFixColumn(int val) { m_FixColumn = std::move(val); }
 
   protected:
         void resizeEvent(QResizeEvent *event) override;
@@ -66,7 +71,8 @@
         void scrollTo (const QModelIndex & index, ScrollHint hint = EnsureVisible) override;
 
   private:
-        QTableView *frozenTableView;
+        QTableView *frozenTableView = nullptr;
+	int m_FixColumn = -1;
         void init();
         void updateFrozenTableGeometry();
 

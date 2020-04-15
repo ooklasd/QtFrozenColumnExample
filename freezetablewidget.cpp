@@ -53,23 +53,42 @@
   #include <QScrollBar>
   #include <QHeaderView>
 
-  FreezeTableWidget::FreezeTableWidget(QAbstractItemModel * model)
+  FreezeTableWidget::FreezeTableWidget(QWidget *parent)
+	:QTableView(parent)
   {
-        setModel(model);
-        frozenTableView = new QTableView(this);
+        setObjectName("FreezeTableWidget");
 
-        init();
+	frozenTableView = new QTableView(this);
+	frozenTableView->setObjectName("frozenTableView");
+	frozenTableView->setVisible(false);
+	//frozenTableView->setFocusPolicy(Qt::NoFocus);
+	frozenTableView->setFocusProxy(this);
+	frozenTableView->verticalHeader()->hide();
+	frozenTableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+	frozenTableView->setStyleSheet(R"(
+		QTableView { 
+			border: none;
+		}
+	)");
+	viewport()->stackUnder(frozenTableView);
+	frozenTableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	frozenTableView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-        //connect the headers and scrollbars of both tableviews together
-        connect(horizontalHeader(),&QHeaderView::sectionResized, this,
-                &FreezeTableWidget::updateSectionWidth);
-        connect(verticalHeader(),&QHeaderView::sectionResized, this,
-                &FreezeTableWidget::updateSectionHeight);
+	setHorizontalScrollMode(ScrollPerPixel);
+	setVerticalScrollMode(ScrollPerPixel);
+	frozenTableView->setVerticalScrollMode(ScrollPerPixel);
 
-        connect(frozenTableView->verticalScrollBar(), &QAbstractSlider::valueChanged,
-                verticalScrollBar(), &QAbstractSlider::setValue);
-        connect(verticalScrollBar(), &QAbstractSlider::valueChanged,
-                frozenTableView->verticalScrollBar(), &QAbstractSlider::setValue);
+
+	//connect the headers and scrollbars of both tableviews together
+	connect(horizontalHeader(), &QHeaderView::sectionResized, this,
+		&FreezeTableView::updateSectionWidth);
+	connect(verticalHeader(), &QHeaderView::sectionResized, this,
+		&FreezeTableView::updateSectionHeight);
+
+	connect(frozenTableView->verticalScrollBar(), &QAbstractSlider::valueChanged,
+		verticalScrollBar(), &QAbstractSlider::setValue);
+	connect(verticalScrollBar(), &QAbstractSlider::valueChanged,
+		frozenTableView->verticalScrollBar(), &QAbstractSlider::setValue);
 
   }
 
@@ -81,38 +100,28 @@
   void FreezeTableWidget::init()
   {
         frozenTableView->setModel(model());
-        frozenTableView->setFocusPolicy(Qt::NoFocus);
-        frozenTableView->verticalHeader()->hide();
-        frozenTableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+	frozenTableView->setSelectionModel(selectionModel());
+	frozenTableView->setSelectionMode(selectionMode());
+	frozenTableView->setSelectionBehavior(selectionBehavior());
+	for (int col = getFixColumn() + 1; col < model()->columnCount(); ++col)
+		frozenTableView->setColumnHidden(col, true);
 
-        viewport()->stackUnder(frozenTableView);
+	for (size_t col = 0, Length = getFixColumn() + 1; col < Length; ++col)
+	{
+		frozenTableView->setColumnWidth(col, columnWidth(col));
+	}
 
-        frozenTableView->setStyleSheet("QTableView { border: none;"
-                                       "background-color: #8EDE21;"
-                                       "selection-background-color: #999}"); //for demo purposes
-        frozenTableView->setSelectionModel(selectionModel());
-        for (int col = 1; col < model()->columnCount(); ++col)
-              frozenTableView->setColumnHidden(col, true);
+	frozenTableView->setVisible(getFixColumn() >= 0);
 
-        frozenTableView->setColumnWidth(0, columnWidth(0) );
-
-        frozenTableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        frozenTableView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        frozenTableView->show();
-
-        updateFrozenTableGeometry();
-
-        setHorizontalScrollMode(ScrollPerPixel);
-        setVerticalScrollMode(ScrollPerPixel);
-        frozenTableView->setVerticalScrollMode(ScrollPerPixel);
+	updateFrozenTableGeometry();
   }
 
   void FreezeTableWidget::updateSectionWidth(int logicalIndex, int /* oldSize */, int newSize)
   {
-        if (logicalIndex == 0){
-              frozenTableView->setColumnWidth(0, newSize);
-              updateFrozenTableGeometry();
-        }
+        if (logicalIndex <= getFixColumn()){
+		frozenTableView->setColumnWidth(logicalIndex, newSize);
+		updateFrozenTableGeometry();
+	}
   }
 
   void FreezeTableWidget::updateSectionHeight(int logicalIndex, int /* oldSize */, int newSize)
@@ -147,7 +156,13 @@
 
   void FreezeTableWidget::updateFrozenTableGeometry()
   {
-        frozenTableView->setGeometry(verticalHeader()->width() + frameWidth(),
-                                     frameWidth(), columnWidth(0),
-                                     viewport()->height()+horizontalHeader()->height());
+        int columnsWidth = 0;
+	for (size_t col = 0, Length = getFixColumn() + 1; col < Length; ++col)
+	{
+		columnsWidth += columnWidth(col);
+	}
+
+	frozenTableView->setGeometry(verticalHeader()->width() + frameWidth(),
+		frameWidth(), columnsWidth,
+		viewport()->height() + horizontalHeader()->height());
   }
